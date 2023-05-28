@@ -87,6 +87,27 @@ public class SoundifyController : ControllerBase
         return Ok();
     }
 
+    [HttpGet]
+    [Route("user/GetUser")]
+    public IActionResult GetUser([FromQuery] UserModel user)
+    {
+        if (user == null)
+            return BadRequest();
+
+        UserModel? foundUser = null;
+        if (user.Id > 0)
+            foundUser = _dbContext.Users.FirstOrDefault(u => u.Id == user.Id);
+        else if (!string.IsNullOrEmpty(user.Email))
+            foundUser = _dbContext.Users.FirstOrDefault(u => u.Email == user.Email);
+        else if (!string.IsNullOrEmpty(user.Username))
+            foundUser = _dbContext.Users.FirstOrDefault(u => u.Username == user.Username);
+
+        if (foundUser == null)
+            return NotFound();
+
+        return Ok(new { foundUser });
+    }
+
     private string GenerateJwtToken()
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
