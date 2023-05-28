@@ -42,7 +42,30 @@ public class UserController : ControllerBase
         if (foundUser == null)
             return NotFound();
 
-        return Ok(new { foundUser });
+        return Ok(foundUser);
+    }
+
+    [HttpGet]
+    [Route("GetUsers")]
+    public IActionResult GetUsers([FromQuery] GetUserInput userInput)
+    {
+        if (userInput == null)
+            return BadRequest();
+
+        var query = _dbContext.Users.AsQueryable();
+
+        if (!string.IsNullOrEmpty(userInput.Email))
+            query = query.Where(u => u.Email == userInput.Email);
+
+        if (!string.IsNullOrEmpty(userInput.Username))
+            query = query.Where(u => u.Username == userInput.Username);
+
+        var foundUsers = query.ToList();
+
+        if (foundUsers.Count == 0)
+            return NotFound();
+
+        return Ok(foundUsers);
     }
 
     [HttpPost]
