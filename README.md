@@ -55,3 +55,7 @@ The API documentation is automatically generated using Swagger. Once the backend
 ## Contributing
 
 This project is a student project and currently not open to external contributions. However, you are welcome to fork the repository and modify it for your own use.
+
+## To-do (probably won't)
+
+- Better handling of validation errors
