@@ -132,14 +132,14 @@ public class UserController : ControllerBase
         if (user == null)
             return BadRequest("User doesn't exists");
 
-        var fileName = $"{userPicture.UserId}{Path.GetExtension(userPicture.Image.FileName).ToLowerInvariant()}";
+        var fileName = $"{user.Id}{Path.GetExtension(userPicture.Image.FileName).ToLowerInvariant()}";
         var path = Path.Combine("wwwroot/images/users", fileName);
-
-        using (var stream = new FileStream(path, FileMode.Create))
-            await userPicture.Image.CopyToAsync(stream);
 
         if (user.ProfilePictureFileName != "default.jpg")
             System.IO.File.Delete($"wwwroot/images/users/{user.ProfilePictureFileName}");
+
+        using (var stream = new FileStream(path, FileMode.Create))
+            await userPicture.Image.CopyToAsync(stream);
 
         user.ProfilePictureFileName = fileName;
 
