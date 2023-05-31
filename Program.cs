@@ -18,6 +18,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+var url = app.Configuration.GetValue<string>("Url");
+
+if (url != null)
+    app.Urls.Add(url);
+
 app.UseStaticFiles();
 
 app.UseHttpsRedirection();
