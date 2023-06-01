@@ -16,12 +16,14 @@ public class UserController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IPasswordService _passwordService;
     private readonly SoundifyDbContext _dbContext;
+    private readonly ISettingsService _settings;
 
-    public UserController(IConfiguration configuration, IPasswordService passwordService, SoundifyDbContext dbContext)
+    public UserController(IConfiguration configuration, IPasswordService passwordService, SoundifyDbContext dbContext, ISettingsService settings)
     {
         _configuration = configuration;
         _passwordService = passwordService;
         _dbContext = dbContext;
+        _settings = settings;
     }
 
     [HttpGet]
@@ -42,7 +44,7 @@ public class UserController : ControllerBase
         if (foundUser == null)
             return NotFound();
 
-        return Ok(foundUser);
+        return Ok(foundUser.ToSimplifiedUser(_settings.GetUrl()));
     }
 
     [HttpGet]
@@ -65,7 +67,9 @@ public class UserController : ControllerBase
         if (foundUsers.Count == 0)
             return NotFound();
 
-        return Ok(foundUsers);
+        return Ok(foundUsers.Select(
+            user => user.ToSimplifiedUser(_settings.GetUrl()))
+        );
     }
 
     [HttpPost]

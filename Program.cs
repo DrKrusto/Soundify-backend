@@ -9,6 +9,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<SoundifyDbContext>();
 builder.Services.AddJwt(builder.Configuration);
 builder.Services.AddTransient<IPasswordService, PasswordService>();
+builder.Services.AddTransient<ISettingsService, SettingsService>();
 
 var app = builder.Build();
 

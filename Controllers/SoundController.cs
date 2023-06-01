@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Soundify_backend.Models;
 using Soundify_backend.Services;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Soundify_backend.Controllers;
 
@@ -9,12 +10,12 @@ namespace Soundify_backend.Controllers;
 public class SoundController : ControllerBase
 {
     private readonly SoundifyDbContext _dbContext;
-    private readonly IConfiguration _configuration;
+    private readonly ISettingsService _settingsService;
 
-    public SoundController(SoundifyDbContext dbContext, IConfiguration configuration)
+    public SoundController(SoundifyDbContext dbContext, ISettingsService settings)
     {
         _dbContext = dbContext;
-        _configuration = configuration;
+        _settingsService = settings;
     }
 
     [HttpGet]
@@ -26,30 +27,29 @@ public class SoundController : ControllerBase
             return BadRequest("Query is empty");
         }
 
-        var query = _dbContext.Sounds.AsQueryable();
+        var soundFound = QueryDbForSounds(soundInput).FirstOrDefault();
 
-        if (soundInput.Id != null) 
-            query = query.Where(sound => sound.Id == soundInput.Id);
-
-        if (!string.IsNullOrEmpty(soundInput.Name)) 
-            query = query.Where(sound => sound.Name == soundInput.Name);
-
-        var soundFound = query.FirstOrDefault();
-
-        if (soundFound != null)
+        if (soundFound == null)
         {
-            var url = _configuration.GetValue<string>("Url");
-
-            return Ok(new
-            {
-                Id = soundFound.Id,
-                Name = soundFound.Name,
-                Uploader = _dbContext.Users.FirstOrDefault(user => user.Id == soundFound.UploaderId),
-                FileUrl = $"{url}/sounds/{soundFound.Id}{soundFound.FileExtension}"
-            });
+            return NotFound();
         }
 
-        return NotFound();
+        return Ok(soundFound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext));
+    }
+
+    [HttpGet]
+    [Route("GetSounds")]
+    public IActionResult GetSounds([FromQuery] GetSoundInput soundInput)
+    {
+        var soundsFound = QueryDbForSounds(soundInput);
+
+        if (soundsFound == null || soundsFound.Count() <= 0)
+        {
+            return NotFound();
+        }
+
+        var sounds = soundsFound.Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext));
+        return Ok(new { Sounds = sounds });
     }
 
     [HttpPost]
@@ -83,4 +83,14 @@ public class SoundController : ControllerBase
 
         return Ok();
     }
+
+    private IQueryable<SoundModel> QueryDbForSounds(GetSoundInput soundInput)
+    {
+        var query = _dbContext.Sounds.AsQueryable();
+        if (soundInput.Id != null)
+            query = query.Where(sound => sound.Id == soundInput.Id);
+        if (!string.IsNullOrEmpty(soundInput.Name))
+            query = query.Where(sound => sound.Name == soundInput.Name);
+        return query;
+    } 
 }
