@@ -49,27 +49,37 @@ public class UserController : ControllerBase
 
     [HttpGet]
     [Route("GetUsers")]
-    public IActionResult GetUsers([FromQuery] GetUserInput userInput)
+    public IActionResult GetUsers([FromQuery] PagingInput paging)
     {
-        if (userInput == null)
-            return BadRequest();
+        var users = _dbContext.Users.ToList();
 
-        var query = _dbContext.Users.AsQueryable();
-
-        if (!string.IsNullOrEmpty(userInput.Email))
-            query = query.Where(u => u.Email == userInput.Email);
-
-        if (!string.IsNullOrEmpty(userInput.Username))
-            query = query.Where(u => u.Username == userInput.Username);
-
-        var foundUsers = query.ToList();
-
-        if (foundUsers.Count == 0)
+        if (users.Count == 0)
             return NotFound();
 
-        return Ok(foundUsers.Select(
-            user => user.ToSimplifiedUser(_settings.GetUrl()))
-        );
+        if (!paging.UsePaging)
+        {
+            return Ok(users.Select(user => 
+                user.ToSimplifiedUser(_settings.GetUrl())));
+        }
+
+        if (paging.Page <= 0 || paging.Size <= 0)
+        {
+            return BadRequest($"Invalid paging parameters");
+        }
+
+        var chunkedUsers = users.Chunk(paging.Size);
+        var countOfPages = users.Count();
+
+        if (paging.Page > countOfPages)
+        {
+            return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+        }
+
+        return Ok(new
+        {
+            MaxPages = users.Count(),
+            Users = users.ElementAt(paging.Page - 1),
+        });
     }
 
     [HttpPost]
