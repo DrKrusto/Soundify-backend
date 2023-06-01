@@ -39,7 +39,7 @@ public class SoundController : ControllerBase
 
     [HttpGet]
     [Route("GetSounds")]
-    public IActionResult GetSounds([FromQuery] GetSoundInput soundInput)
+    public IActionResult GetSounds([FromQuery] GetSoundInput soundInput, [FromQuery] PagingInput paging)
     {
         var soundsFound = QueryDbForSounds(soundInput);
 
@@ -48,7 +48,32 @@ public class SoundController : ControllerBase
             return NotFound();
         }
 
-        var sounds = soundsFound.Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext));
+        var sounds = soundsFound
+            .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext))
+            .ToList();
+
+        if (paging.UsePaging)
+        {
+            if (paging.Page <= 0 || paging.Size <= 0)
+            {
+                return BadRequest($"Invalid paging parameters");
+            }
+
+            var chunkedSounds = sounds.Chunk(paging.Size);
+            var countOfPages = chunkedSounds.Count();
+
+            if (paging.Page > countOfPages)
+            {
+                return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+            }
+
+            return Ok(new
+            {
+                MaxPages = chunkedSounds.Count(),
+                Sounds = chunkedSounds.ElementAt(paging.Page-1),
+            });
+        }
+
         return Ok(new { Sounds = sounds });
     }
 
