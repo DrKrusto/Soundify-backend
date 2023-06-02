@@ -77,6 +77,49 @@ public class SoundController : ControllerBase
         });
     }
 
+    [HttpGet]
+    [Route("SearchSounds")]
+    public IActionResult SearchSounds([FromQuery] string SearchByName = "", [FromQuery] PagingInput? paging = null)
+    {
+        var soundsFound = _dbContext.Sounds.ToList().Where(
+            sound => sound.Name.ToLowerInvariant().Contains(SearchByName.ToLowerInvariant())
+        );
+
+        if (soundsFound == null || soundsFound.Count() <= 0)
+        {
+            return NotFound();
+        }
+
+        var sounds = soundsFound
+            .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext))
+            .ToList();
+
+        if (!paging.UsePaging)
+        {
+            return Ok(new { Sounds = sounds });
+        }
+
+        if (paging.Page <= 0 || paging.Size <= 0)
+        {
+            return BadRequest($"Invalid paging parameters");
+        }
+
+        var chunkedSounds = sounds.Chunk(paging.Size);
+        var countOfPages = chunkedSounds.Count();
+
+        if (paging.Page > countOfPages)
+        {
+            return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+        }
+
+        return Ok(new
+        {
+            MaxPages = chunkedSounds.Count(),
+            CurrentPage = paging.Page,
+            Sounds = chunkedSounds.ElementAt(paging.Page - 1),
+        });
+    }
+
     [HttpPost]
     [Route("UploadSound")]
     public async Task<IActionResult> UploadSound([FromForm] UploadSoundInput soundInput)

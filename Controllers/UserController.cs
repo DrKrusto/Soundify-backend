@@ -78,6 +78,7 @@ public class UserController : ControllerBase
         return Ok(new
         {
             MaxPages = users.Count(),
+            CurrentPage = paging.Page,
             Users = users.ElementAt(paging.Page - 1),
         });
     }
