@@ -59,3 +59,4 @@ This project is a student project and currently not open to external contributio
 ## To-do (probably won't)
 
 - Better handling of validation errors
+- Adding CancellationToken
