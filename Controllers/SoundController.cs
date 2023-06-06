@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Soundify_backend.Models;
+using Soundify_backend.Models.Input;
 using Soundify_backend.Services;
+using System.Net.NetworkInformation;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Soundify_backend.Controllers;
@@ -120,6 +122,56 @@ public class SoundController : ControllerBase
         });
     }
 
+    [HttpGet]
+    [Route("GetFavorites")]
+    public IActionResult GetFavorites([FromQuery] GetFavoritesInput getFavoritesInput, [FromQuery] PagingInput pagingInput)
+    {
+        if (getFavoritesInput == null)
+        {
+            return BadRequest("Invalid input parameters");
+        }
+
+        var foundUser = _dbContext.Users.FirstOrDefault(user => user.Id == getFavoritesInput.UserId);
+
+        if (foundUser == null)
+        {
+            return BadRequest($"User {getFavoritesInput.UserId} doesn't exists");
+        }
+
+        var favoriteSounds = _dbContext.Favorites
+            .Where(favorite => favorite.UserId == foundUser.Id)
+            .Select(favorite => _dbContext.Sounds.First(sound => sound.Id == favorite.SoundId));
+
+        if (!pagingInput.UsePaging)
+        {
+            return Ok(new { Sounds = favoriteSounds
+                .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext))
+                .ToList() 
+            });
+        }
+
+        if (pagingInput.Page <= 0 || pagingInput.Size <= 0)
+        {
+            return BadRequest($"Invalid pagingInput parameters");
+        }
+
+        var chunkedSounds = favoriteSounds.ToList().Chunk(pagingInput.Size);
+        var countOfPages = chunkedSounds.Count();
+
+        if (pagingInput.Page > countOfPages)
+        {
+            return BadRequest($"Invalid paging parameters: the page number ({pagingInput.Page}) is greater than the count of pages ({countOfPages})");
+        }
+
+        return Ok(new
+        {
+            MaxPages = chunkedSounds.Count(),
+            CurrentPage = pagingInput.Page,
+            Sounds = chunkedSounds.ElementAt(pagingInput.Page - 1)
+            .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext)),
+        });
+    }
+
     [HttpPost]
     [Route("UploadSound")]
     public async Task<IActionResult> UploadSound([FromForm] UploadSoundInput soundInput)
@@ -147,6 +199,71 @@ public class SoundController : ControllerBase
             await soundInput.Sound.CopyToAsync(stream);
 
         _dbContext.Sounds.Add(sound);
+        _dbContext.SaveChanges();
+
+        return Ok();
+    }
+
+    [HttpPost]
+    [Route("AddToFavorites")]
+    public IActionResult AddToFavorites([FromBody] AddToFavoritesInput addToFavoritesInput)
+    {
+        if (addToFavoritesInput == null)
+        {
+            return BadRequest("Invalid input parameters");
+        }
+
+        var foundFavorite = _dbContext
+            .Favorites
+            .FirstOrDefault(favorite =>
+                favorite.UserId == addToFavoritesInput.UserId &&
+                favorite.SoundId == addToFavoritesInput.SoundId);
+        if (foundFavorite != null)
+        {
+            return BadRequest($"User {addToFavoritesInput.UserId} already have the sound {addToFavoritesInput.SoundId} in its favorites");
+        }
+
+        var foundUser = _dbContext.Users.FirstOrDefault(user => user.Id == addToFavoritesInput.UserId);
+        if (foundUser == null)
+        {
+            return BadRequest($"User {addToFavoritesInput.UserId} doesn't exists");
+        }
+
+        var foundSound = _dbContext.Sounds.FirstOrDefault(sound => sound.Id == addToFavoritesInput.SoundId);
+        if (foundSound == null)
+        {
+            return BadRequest($"Sound {addToFavoritesInput.SoundId} doesn't exists");
+        }
+
+        _dbContext.Favorites.Add(new FavoriteModel { 
+            SoundId = foundSound.Id, 
+            UserId = foundUser.Id 
+        });
+        _dbContext.SaveChanges();
+
+        return Ok();
+    }
+
+    [HttpDelete]
+    [Route("DeleteFromFavorites")]
+    public IActionResult DeleteFromFavorites([FromBody] AddToFavoritesInput addToFavoritesInput)
+    {
+        if (addToFavoritesInput == null)
+        {
+            return BadRequest("Invalid input parameters");
+        }
+
+        var foundFavorite = _dbContext
+            .Favorites
+            .FirstOrDefault(favorite => 
+                favorite.UserId == addToFavoritesInput.UserId && 
+                favorite.SoundId == addToFavoritesInput.SoundId);
+        if (foundFavorite == null)
+        {
+            return BadRequest($"User {addToFavoritesInput.UserId} do not have the sound {addToFavoritesInput.SoundId} in its favorites");
+        }
+
+        _dbContext.Favorites.Remove(foundFavorite);
         _dbContext.SaveChanges();
 
         return Ok();
