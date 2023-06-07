@@ -26,17 +26,17 @@ public class SoundController : ControllerBase
     {
         if (soundInput == null || (soundInput.Id == null && string.IsNullOrEmpty(soundInput.Name)))
         {
-            return BadRequest("Query is empty");
+            return HttpResponseModel.BadRequest("Query is empty");
         }
 
         var soundFound = QueryDbForSounds(soundInput).FirstOrDefault();
 
         if (soundFound == null)
         {
-            return NotFound();
+            return HttpResponseModel.NotFound("Couldn't find any sound according to the input provided");
         }
 
-        return Ok(soundFound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext));
+        return HttpResponseModel.Ok(soundFound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext), "Sound have been fetched");
     }
 
     [HttpGet]
@@ -47,7 +47,7 @@ public class SoundController : ControllerBase
 
         if (soundsFound == null || soundsFound.Count() <= 0)
         {
-            return NotFound();
+            return HttpResponseModel.NotFound("Couldn't find any sounds");
         }
 
         var sounds = soundsFound
@@ -56,12 +56,12 @@ public class SoundController : ControllerBase
 
         if (!paging.UsePaging)
         {
-            return Ok(new { Sounds = sounds });
+            return HttpResponseModel.Ok(sounds, "Sounds have been fetched");
         }
 
         if (paging.Page <= 0 || paging.Size <= 0)
         {
-            return BadRequest($"Invalid paging parameters");
+            return HttpResponseModel.BadRequest("Invalid paging parameters");
         }
 
         var chunkedSounds = sounds.Chunk(paging.Size);
@@ -69,14 +69,14 @@ public class SoundController : ControllerBase
 
         if (paging.Page > countOfPages)
         {
-            return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
         }
 
-        return Ok(new
+        return HttpResponseModel.Ok(new
         {
             MaxPages = chunkedSounds.Count(),
             Sounds = chunkedSounds.ElementAt(paging.Page - 1),
-        });
+        }, "Sounds have been fetched");
     }
 
     [HttpGet]
@@ -89,7 +89,7 @@ public class SoundController : ControllerBase
 
         if (soundsFound == null || soundsFound.Count() <= 0)
         {
-            return NotFound();
+            return HttpResponseModel.NotFound("Couldn't find any sounds");
         }
 
         var sounds = soundsFound
@@ -98,12 +98,12 @@ public class SoundController : ControllerBase
 
         if (!paging.UsePaging)
         {
-            return Ok(new { Sounds = sounds });
+            return HttpResponseModel.Ok(sounds, "Sounds have been fetched");
         }
 
         if (paging.Page <= 0 || paging.Size <= 0)
         {
-            return BadRequest($"Invalid paging parameters");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters");
         }
 
         var chunkedSounds = sounds.Chunk(paging.Size);
@@ -111,15 +111,15 @@ public class SoundController : ControllerBase
 
         if (paging.Page > countOfPages)
         {
-            return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
         }
 
-        return Ok(new
+        return HttpResponseModel.Ok(new
         {
             MaxPages = chunkedSounds.Count(),
             CurrentPage = paging.Page,
             Sounds = chunkedSounds.ElementAt(paging.Page - 1),
-        });
+        }, "Sounds have been fetched");
     }
 
     [HttpGet]
@@ -128,14 +128,14 @@ public class SoundController : ControllerBase
     {
         if (getFavoritesInput == null)
         {
-            return BadRequest("Invalid input parameters");
+            return HttpResponseModel.BadRequest("Invalid input parameters");
         }
 
         var foundUser = _dbContext.Users.FirstOrDefault(user => user.Id == getFavoritesInput.UserId);
 
         if (foundUser == null)
         {
-            return BadRequest($"User {getFavoritesInput.UserId} doesn't exists");
+            return HttpResponseModel.BadRequest($"User {getFavoritesInput.UserId} doesn't exists");
         }
 
         var favoriteSounds = _dbContext.Favorites
@@ -144,15 +144,15 @@ public class SoundController : ControllerBase
 
         if (!pagingInput.UsePaging)
         {
-            return Ok(new { Sounds = favoriteSounds
+            return HttpResponseModel.Ok(favoriteSounds
                 .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext))
-                .ToList() 
-            });
+                .ToList(), "Favorites have been fetched"
+            );
         }
 
         if (pagingInput.Page <= 0 || pagingInput.Size <= 0)
         {
-            return BadRequest($"Invalid pagingInput parameters");
+            return HttpResponseModel.BadRequest($"Invalid pagingInput parameters");
         }
 
         var chunkedSounds = favoriteSounds.ToList().Chunk(pagingInput.Size);
@@ -160,16 +160,16 @@ public class SoundController : ControllerBase
 
         if (pagingInput.Page > countOfPages)
         {
-            return BadRequest($"Invalid paging parameters: the page number ({pagingInput.Page}) is greater than the count of pages ({countOfPages})");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters: the page number ({pagingInput.Page}) is greater than the count of pages ({countOfPages})");
         }
 
-        return Ok(new
+        return HttpResponseModel.Ok(new
         {
             MaxPages = chunkedSounds.Count(),
             CurrentPage = pagingInput.Page,
             Sounds = chunkedSounds.ElementAt(pagingInput.Page - 1)
             .Select(sound => sound.ToSimplifiedSound(_settingsService.GetUrl(), _dbContext)),
-        });
+        }, "Favorites have been fetched");
     }
 
     [HttpPost]
@@ -179,10 +179,10 @@ public class SoundController : ControllerBase
         string[] allowSoundExtensions = { "audio/mpeg", "audio/vnd.wav" };
 
         if (soundInput.Sound == null || soundInput.Sound.Length == 0 || !allowSoundExtensions.Contains(soundInput.Sound.ContentType))
-            return BadRequest("Invalid sound file");
+            return HttpResponseModel.BadRequest("Invalid sound file");
 
         if (_dbContext.Users.FirstOrDefault(user => user.Id == soundInput.UploaderId) == null)
-            return BadRequest("Uploader doesn't exists");
+            return HttpResponseModel.BadRequest("Uploader doesn't exists");
 
         SoundModel sound = new()
         {
@@ -201,7 +201,7 @@ public class SoundController : ControllerBase
         _dbContext.Sounds.Add(sound);
         _dbContext.SaveChanges();
 
-        return Ok();
+        return HttpResponseModel.Ok(sound, "Sound has been uploaded");
     }
 
     [HttpPost]
@@ -210,7 +210,7 @@ public class SoundController : ControllerBase
     {
         if (addToFavoritesInput == null)
         {
-            return BadRequest("Invalid input parameters");
+            return HttpResponseModel.BadRequest("Invalid input parameters");
         }
 
         var foundFavorite = _dbContext
@@ -220,19 +220,19 @@ public class SoundController : ControllerBase
                 favorite.SoundId == addToFavoritesInput.SoundId);
         if (foundFavorite != null)
         {
-            return BadRequest($"User {addToFavoritesInput.UserId} already have the sound {addToFavoritesInput.SoundId} in its favorites");
+            return HttpResponseModel.BadRequest($"User {addToFavoritesInput.UserId} already have the sound {addToFavoritesInput.SoundId} in its favorites");
         }
 
         var foundUser = _dbContext.Users.FirstOrDefault(user => user.Id == addToFavoritesInput.UserId);
         if (foundUser == null)
         {
-            return BadRequest($"User {addToFavoritesInput.UserId} doesn't exists");
+            return HttpResponseModel.BadRequest($"User {addToFavoritesInput.UserId} doesn't exists");
         }
 
         var foundSound = _dbContext.Sounds.FirstOrDefault(sound => sound.Id == addToFavoritesInput.SoundId);
         if (foundSound == null)
         {
-            return BadRequest($"Sound {addToFavoritesInput.SoundId} doesn't exists");
+            return HttpResponseModel.BadRequest($"Sound {addToFavoritesInput.SoundId} doesn't exists");
         }
 
         _dbContext.Favorites.Add(new FavoriteModel { 
@@ -241,7 +241,7 @@ public class SoundController : ControllerBase
         });
         _dbContext.SaveChanges();
 
-        return Ok();
+        return HttpResponseModel.Ok(foundSound.Id, "Sound has been added to the users' favorites");
     }
 
     [HttpDelete]
@@ -250,7 +250,7 @@ public class SoundController : ControllerBase
     {
         if (addToFavoritesInput == null)
         {
-            return BadRequest("Invalid input parameters");
+            return HttpResponseModel.BadRequest("Invalid input parameters");
         }
 
         var foundFavorite = _dbContext
@@ -260,13 +260,13 @@ public class SoundController : ControllerBase
                 favorite.SoundId == addToFavoritesInput.SoundId);
         if (foundFavorite == null)
         {
-            return BadRequest($"User {addToFavoritesInput.UserId} do not have the sound {addToFavoritesInput.SoundId} in its favorites");
+            return HttpResponseModel.BadRequest($"User {addToFavoritesInput.UserId} do not have the sound {addToFavoritesInput.SoundId} in its favorites");
         }
 
         _dbContext.Favorites.Remove(foundFavorite);
         _dbContext.SaveChanges();
 
-        return Ok();
+        return HttpResponseModel.Ok(foundFavorite.SoundId, "Sound has been deleted from favorites");
     }
 
     private IQueryable<SoundModel> QueryDbForSounds(GetSoundInput soundInput)

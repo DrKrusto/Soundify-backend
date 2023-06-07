@@ -32,7 +32,7 @@ public class UserController : ControllerBase
     public IActionResult GetUser([FromQuery] GetUserInput userInput)
     {
         if (userInput == null)
-            return BadRequest();
+            return HttpResponseModel.BadRequest("The credentials you provided are empty");
 
         UserModel? foundUser = null;
         if (userInput.UserId != null)
@@ -43,9 +43,9 @@ public class UserController : ControllerBase
             foundUser = _dbContext.Users.FirstOrDefault(u => u.Username == userInput.Username);
 
         if (foundUser == null)
-            return NotFound();
+            return HttpResponseModel.NotFound("Couldn't find the user");
 
-        return Ok(foundUser.ToSimplifiedUser(_settings.GetUrl()));
+        return HttpResponseModel.Ok(foundUser.ToSimplifiedUser(_settings.GetUrl()), "User has been found");
     }
 
     [HttpGet]
@@ -55,17 +55,17 @@ public class UserController : ControllerBase
         var users = _dbContext.Users.ToList();
 
         if (users.Count == 0)
-            return NotFound();
+            return HttpResponseModel.NotFound("Couldn't find any users");
 
         if (!paging.UsePaging)
         {
-            return Ok(users.Select(user => 
-                user.ToSimplifiedUser(_settings.GetUrl())));
+            return HttpResponseModel.Ok(users.Select(user => 
+                user.ToSimplifiedUser(_settings.GetUrl())), "Users have been found");
         }
 
         if (paging.Page <= 0 || paging.Size <= 0)
         {
-            return BadRequest($"Invalid paging parameters");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters");
         }
 
         var chunkedUsers = users.Chunk(paging.Size);
@@ -73,15 +73,15 @@ public class UserController : ControllerBase
 
         if (paging.Page > countOfPages)
         {
-            return BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
+            return HttpResponseModel.BadRequest($"Invalid paging parameters: the page number ({paging.Page}) is greater than the count of pages ({countOfPages})");
         }
 
-        return Ok(new
+        return HttpResponseModel.Ok(new
         {
             MaxPages = users.Count(),
             CurrentPage = paging.Page,
             Users = users.ElementAt(paging.Page - 1),
-        });
+        }, "Users have been found");
     }
 
     [HttpPost]
@@ -89,25 +89,25 @@ public class UserController : ControllerBase
     public IActionResult LoginUser([FromBody] LoginInput login)
     {
         if (login == null)
-            return BadRequest();
+            return HttpResponseModel.BadRequest("Invalid login parameters");
 
         if (!ValidateEmail(login.Email))
         {
-            return BadRequest("Please provide a valid email to login");
+            return HttpResponseModel.BadRequest("Please provide a valid email to login");
         }
 
         var user = _dbContext.Users.SingleOrDefault(user => user.Email == login.Email);
 
         if (user == null)
-            return Unauthorized("The email/password is wrong");
+            return HttpResponseModel.Unauthorized("The email/password is wrong");
 
         var salt = _dbContext.Salts.SingleOrDefault(salt => salt.UserId == user.Id);
 
         if (!_passwordService.IsPasswordMatching(user.Id, login.Password, user.HashedPassword))
-            return Unauthorized("The email/password is wrong");
+            return HttpResponseModel.Unauthorized("The email/password is wrong");
 
         var jwt = GenerateJwtToken();
-        return Ok(new { jwt });
+        return HttpResponseModel.Ok(jwt, "User has been logged in");
     }
 
     [HttpPost]
@@ -118,17 +118,17 @@ public class UserController : ControllerBase
             string.IsNullOrEmpty(userCreation.Username) ||
             string.IsNullOrEmpty(userCreation.Email) ||
             string.IsNullOrEmpty(userCreation.Password))
-            return BadRequest("Invalid input parameters");
+            return HttpResponseModel.BadRequest("Invalid input parameters");
 
         if (!ValidateEmail(userCreation.Email))
         {
-            return BadRequest("Please provide a valid email to register your account");
+            return HttpResponseModel.BadRequest("Please provide a valid email to register your account");
         }
 
         var existingUser = _dbContext.Users.FirstOrDefault(p => p.Email == userCreation.Email);
 
         if (existingUser != null)
-            return BadRequest("This email is already used");
+            return HttpResponseModel.BadRequest("This email is already used");
 
         Guid userId = Guid.NewGuid();
 
@@ -137,15 +137,18 @@ public class UserController : ControllerBase
             throw new InvalidOperationException("Failed to push salt to the database hence couldn't hash the password");
         }
 
-        _dbContext.Users.Add(new UserModel { 
-            Id = userId, 
-            Email = userCreation.Email, 
+        var user = new UserModel
+        {
+            Id = userId,
+            Email = userCreation.Email,
             Username = userCreation.Username,
             HashedPassword = hashedPassword
-        });
+        };
+
+        _dbContext.Users.Add(user);
         _dbContext.SaveChanges();
 
-        return Ok();
+        return HttpResponseModel.Ok(user.Id, "User has been created");
     }
 
     [HttpPost]
@@ -155,11 +158,11 @@ public class UserController : ControllerBase
         string[] allowedImageTypes = { "image/jpeg", "image/png", "image/jpg" };
 
         if (userPicture.Image == null || userPicture.Image.Length == 0 || !allowedImageTypes.Contains(userPicture.Image.ContentType))
-            return BadRequest("Invalid image file");
+            return HttpResponseModel.BadRequest("Invalid image file");
 
         var user = _dbContext.Users.FirstOrDefault(user => user.Id == userPicture.UserId);
         if (user == null)
-            return BadRequest("User doesn't exists");
+            return HttpResponseModel.BadRequest("User doesn't exists");
 
         var fileName = $"{user.Id}{Path.GetExtension(userPicture.Image.FileName).ToLowerInvariant()}";
         var path = Path.Combine("wwwroot/images/users", fileName);
@@ -174,7 +177,7 @@ public class UserController : ControllerBase
 
         _dbContext.SaveChanges();
 
-        return Ok();
+        return HttpResponseModel.Ok(user.Id, "Image has been uploaded");
     }
 
     public static bool ValidateEmail(string email)
