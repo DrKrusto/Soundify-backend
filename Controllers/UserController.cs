@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Soundify_backend.Controllers;
 
@@ -90,6 +91,11 @@ public class UserController : ControllerBase
         if (login == null)
             return BadRequest();
 
+        if (!ValidateEmail(login.Email))
+        {
+            return BadRequest("Please provide a valid email to login");
+        }
+
         var user = _dbContext.Users.SingleOrDefault(user => user.Email == login.Email);
 
         if (user == null)
@@ -108,8 +114,16 @@ public class UserController : ControllerBase
     [Route("CreateUser")]
     public IActionResult CreateUser([FromBody] UserCreationInput userCreation)
     {
-        if (userCreation == null)
-            return BadRequest();
+        if (userCreation == null || 
+            string.IsNullOrEmpty(userCreation.Username) ||
+            string.IsNullOrEmpty(userCreation.Email) ||
+            string.IsNullOrEmpty(userCreation.Password))
+            return BadRequest("Invalid input parameters");
+
+        if (!ValidateEmail(userCreation.Email))
+        {
+            return BadRequest("Please provide a valid email to register your account");
+        }
 
         var existingUser = _dbContext.Users.FirstOrDefault(p => p.Email == userCreation.Email);
 
@@ -161,6 +175,13 @@ public class UserController : ControllerBase
         _dbContext.SaveChanges();
 
         return Ok();
+    }
+
+    public static bool ValidateEmail(string email)
+    {
+        string pattern = @"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$";
+        Regex regex = new Regex(pattern);
+        return regex.IsMatch(email);
     }
 
     private string GenerateJwtToken()
